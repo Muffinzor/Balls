@@ -3,8 +3,8 @@
 #include <box2d/box2d.h>
 
 // Convert Box2D meters to SFML pixels
-const float PPM = 1;
-const int quantity = 45;
+const float PPM = 32;
+const int quantity = 100;
 
 double random_double(const double min, const double max) {
     std::random_device rd;
@@ -16,7 +16,7 @@ double random_double(const double min, const double max) {
 void create_ball(b2World &world, const b2Vec2 position, const b2Vec2 velocity, const float radius, std::vector<b2Body*>& bodies) {
     b2BodyDef bodyDef;
     bodyDef.type = b2_dynamicBody;
-    bodyDef.position.Set(position.x / PPM, position.y / PPM);
+    bodyDef.position.Set(position.x, position.y);
     b2Body *body = world.CreateBody(&bodyDef);
     b2CircleShape shape;
     shape.m_radius = radius;
@@ -24,7 +24,7 @@ void create_ball(b2World &world, const b2Vec2 position, const b2Vec2 velocity, c
     fixtureDef.shape = &shape;
     fixtureDef.density = 1;
     fixtureDef.restitution = 1;
-    fixtureDef.friction = 0;
+    fixtureDef.friction = 1;
     body->CreateFixture(&fixtureDef);
     body->SetLinearVelocity(velocity);
     bodies.push_back(body);
@@ -52,7 +52,7 @@ int main() {
 
     for (int i = 0; i < quantity; ++i) {
         auto *pos_1 = new b2Vec2(random_double(0,800), random_double(0,600));
-        auto *vel_1 = new b2Vec2(random_double(-4,4), random_double(-4,4));
+        auto *vel_1 = new b2Vec2(random_double(-4,4) * PPM, random_double(-4,4) * PPM);
         create_ball(world, *pos_1, *vel_1, 10, bodies);
         delete pos_1;
         delete vel_1;
@@ -65,19 +65,33 @@ int main() {
         shapes.push_back(circle);
     }
 
+    float timeStep = 1.f / 60.f;
+    int velocityIterations = 2;
+    int positionIterations = 1;
+
+    sf::Clock clock;
+    float accumulator = 0.f;
+
     while (window.isOpen()) {
         sf::Event event{};
         while (window.pollEvent(event))
             if (event.type == sf::Event::Closed)
                 window.close();
 
-        float timeStep = 1.f / 60.f;
-        int velocityIterations = 2;
-        int positionIterations = 1;
-        world.Step(timeStep, velocityIterations, positionIterations);
+
+        float frameTime = clock.restart().asSeconds();
+        accumulator += frameTime;
+
+        while (accumulator >= timeStep) {
+            world.Step(timeStep, velocityIterations, positionIterations);
+            accumulator -= timeStep;
+
+            for (int i = 0; i < quantity; ++i) {
+                check_bounds(bodies[i]);
+            }
+        }
 
         for (int i = 0; i < quantity; ++i) {
-            check_bounds(bodies[i]);
             shapes[i].setPosition(bodies[i]->GetPosition().x,bodies[i]->GetPosition().y);
         }
 
